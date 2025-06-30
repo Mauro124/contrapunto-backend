@@ -1,8 +1,8 @@
 import { Router } from 'express';
-import { analyzeNews } from '../controllers/newsAnalysisController';
+import { analyzeSingleNews } from '../controllers/newsAnalysisController';
 
 const router = Router();
 
-router.post('/news-analysis', analyzeNews);
+router.post('/news-analysis/single', analyzeSingleNews);
 
 export default router;

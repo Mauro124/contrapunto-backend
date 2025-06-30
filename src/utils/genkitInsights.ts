@@ -1,96 +1,105 @@
 import googleAI, { gemini20Flash } from '@genkit-ai/googleai';
-import { genkit, z } from 'genkit';
-import {
-	GenerateNewsInsightsSchema,
-	normalizeConfidence,
-} from '../schemas/generateInsightsSchemas';
-import { Article } from '../interfaces/types';
+import { genkit } from 'genkit';
+import { SingleNewsAnalysisResult } from '../interfaces/types';
+import { normalizeConfidence } from '../schemas/generateInsightsSchemas';
 
 const ai = genkit({
 	plugins: [googleAI()],
 	model: gemini20Flash,
 });
 
-export const generateNewsInsightsFlow = ai.defineFlow(
-	{
-		name: 'generateNewsInsightsFlow',
-		inputSchema: z.array(z.string()).min(1, 'Debe proporcionar al menos un texto de noticia.'),
-		outputSchema: GenerateNewsInsightsSchema,
-	},
-	async (newsTexts) => {
-		const prompt = `Dadas estas versiones de una noticia, cada una comienza con la URL entre corchetes. Usa SIEMPRE esa URL exactamente en el campo url de biasAnalysis y actorAnalysis. Analiza cada artículo de forma INDEPENDIENTE y específica, aunque los hechos sean similares. Si los enfoques, el tono, el lenguaje, el orden de los hechos, los actores destacados o el contexto difieren, EXPLÍCALO y resáltalo en el análisis. Evita respuestas genéricas o repetidas: busca matices, diferencias de enfoque, detalles únicos, omisiones o énfasis particulares de cada medio. Luego, genera un resumen neutral, un análisis de sesgo ideológico por medio (source, url, bias, biasScore, confidence, explanation), y un análisis de a qué actor político/social favorece cada medio (source, url, favoredActor, confidence, explanation). El campo biasScore debe ser un número entre -1 (muy de izquierda), 0 (centro) y 1 (muy de derecha), y debe estar presente en cada objeto de biasAnalysis. Explica brevemente el razonamiento detrás de cada análisis y cómo asignaste los valores de biasScore y confidence en el campo explanation. El campo confidence debe ser SIEMPRE un número entre 0 (sin confianza) y 1 (confianza total), nunca "none" ni texto. Además, indica en el campo politicalTendency si el tono global de la noticia es más de izquierdas, de derechas, de centro, o indefinido, y explica brevemente por qué en el campo politicalTendencyExplanation. Además, agrega un campo opcional extraInfo con contexto histórico, datos relevantes o cualquier información que ayude al lector a entender mejor la noticia y su tratamiento mediático. Devuelve SOLO un JSON válido con las claves: neutralSummary, politicalTendency, politicalTendencyExplanation, biasAnalysis (array de objetos con source, url, bias, biasScore, confidence, explanation), actorAnalysis (array de objetos con source, url, favoredActor, confidence, explanation), extraInfo (string, opcional).\n\nTextos:\n${newsTexts
-			.map((t, i) => `Medio ${i + 1}: ${t}`)
-			.join('\n')}`;
-
-		console.log('Generando insights de noticia...');
-
-		const { text } = await ai.generate({
-			prompt: prompt,
-		});
-
-		console.log('Respuesta cruda de Gemini:', text);
-		if (!text || text.trim().length === 0) {
-			throw new Error('La IA devolvió una respuesta vacía.');
-		}
-		const jsonStart = text.indexOf('{');
-		const jsonEnd = text.lastIndexOf('}');
-		let cleanText = text;
-		if (jsonStart !== -1 && jsonEnd !== -1) {
-			cleanText = text.substring(jsonStart, jsonEnd + 1);
-		} else {
-			throw new Error('La IA no devolvió un JSON válido. Respuesta: ' + text);
-		}
-		function isValidUrl(url: string): boolean {
-			try {
-				new URL(url);
-				return true;
-			} catch {
-				return false;
-			}
-		}
-
-		try {
-			const raw = JSON.parse(cleanText);
-			// Filtrar solo los objetos con URL válida
-			if (raw.biasAnalysis) {
-				raw.biasAnalysis = raw.biasAnalysis.filter(
-					(item: any) => typeof item.url === 'string' && isValidUrl(item.url)
-				);
-			}
-			if (raw.actorAnalysis) {
-				raw.actorAnalysis = raw.actorAnalysis.filter(
-					(item: any) => typeof item.url === 'string' && isValidUrl(item.url)
-				);
-			}
-			const parsed = GenerateNewsInsightsSchema.parse(raw);
-			// Normalizar confidence a number en biasAnalysis y actorAnalysis
-			parsed.biasAnalysis = parsed.biasAnalysis.map((item) => ({
-				...item,
-				confidence: normalizeConfidence(item.confidence),
-			}));
-			parsed.actorAnalysis = parsed.actorAnalysis.map((item) => ({
-				...item,
-				confidence: normalizeConfidence(item.confidence),
-			}));
-			return parsed;
-		} catch (e) {
-			console.error('Error al parsear JSON de la IA:', cleanText);
-			throw e;
-		}
-	}
-);
-
 // Devuelve también una lista de noticias relacionadas (relatedNewsSuggestions) aparte
-export async function generateNewsInsights(
-	newsTexts: string[],
-	relatedNewsSuggestions?: Article[]
-) {
-	if (!newsTexts || newsTexts.length === 0) {
+export async function generateNewsInsights(html: String) {
+	if (!html || html.length === 0) {
 		throw new Error('Debe proporcionar al menos un texto de noticia para generar insights.');
 	}
 
-	const result = await generateNewsInsightsFlow(newsTexts);
-	return relatedNewsSuggestions && relatedNewsSuggestions.length > 0
-		? { ...result, relatedNewsSuggestions }
-		: result;
+	// Prompt especial para análisis individual profundo
+	const prompt = `Analiza en profundidad el html de la siguiente noticia. Devuelve SOLO un JSON válido con los siguientes campos:
+- neutralSummary: resumen neutral y objetivo de la noticia.
+- biasAnalysis: un solo objeto { source, url, bias (Izquierda, Derecha, Centro, Centro-Izquierda, Centro-derecha), biasScore (-1 izquierda, 0 centro, 1 derecha), confidence (0-1), explanation detallada del sesgo, tono, lenguaje, omisiones, énfasis, etc.}
+- actorAnalysis: un solo objeto { source, url, favoredActor, confidence (0-1), explanation detallada de a quién favorece la nota y por qué}
+- keywords: array de palabras clave relevantes.
+- entities: array de personas, organizaciones, lugares mencionados.
+- writingStyle: descripción del estilo periodístico (ej: informativo, editorializado, sensacionalista, etc.)
+- factCheck: breve verificación de hechos, posibles errores o afirmaciones dudosas.
+- contextInfo: contexto histórico, antecedentes, datos relevantes para entender la noticia.
+- glossary: array de objetos { term, definition } con palabras o expresiones de difícil comprensión para el público general encontradas en la noticia, y su definición clara y sencilla.
+- dataAnalysis: si la noticia contiene datos analíticos, incluye un objeto { explanation: explicación del análisis de los datos, values: array de { label, value, unit } para graficar (unit debe ser 'porcentaje' | 'numero' | 'moneda' | 'cantidad' | 'nivel' | 'otro'), rawData: datos originales si aplica }. Si no hay datos, este campo puede omitirse o ser null.
+- politicalBiasScore: número entre 0 (izquierda) y 1 (derecha) que indique el sesgo político general de la noticia.
+- factualityScore: número entre 0 y 1 que indique el nivel de factualidad (1 = totalmente factual, 0 = nada factual).
+- sensationalismScore: número entre 0 y 1 que indique el nivel de sensacionalismo (1 = muy sensacionalista, 0 = nada sensacionalista).
+
+Sé exhaustivo, preciso y evita respuestas genéricas. Usa SIEMPRE la URL exacta. Ejemplo de entrada:
+[URL] Fuente: Título. Snippet.`;
+
+	console.log('Generando insights individuales de noticia...');
+	const { text } = await ai.generate({
+		prompt: `${prompt}\n\nTexto:\n${html}`,
+	});
+
+	console.log('Respuesta cruda de Gemini (single):', text);
+	if (!text || text.trim().length === 0) {
+		throw new Error('La IA devolvió una respuesta vacía.');
+	}
+	const jsonStart = text.indexOf('{');
+	const jsonEnd = text.lastIndexOf('}');
+	let cleanText = text;
+	if (jsonStart !== -1 && jsonEnd !== -1) {
+		cleanText = text.substring(jsonStart, jsonEnd + 1);
+	} else {
+		console.error('La IA no devolvió un JSON válido. Respuesta:', text);
+		throw new Error('La IA no devolvió un JSON válido. Respuesta: ' + text);
+	}
+
+	try {
+		const raw = JSON.parse(cleanText);
+		if (
+			!raw ||
+			typeof raw !== 'object' ||
+			!raw.neutralSummary ||
+			!raw.biasAnalysis ||
+			!raw.actorAnalysis ||
+			!Array.isArray(raw.keywords) ||
+			!Array.isArray(raw.entities) ||
+			!raw.writingStyle ||
+			!raw.factCheck ||
+			!raw.contextInfo
+		) {
+			throw new Error('El JSON no tiene la estructura esperada.');
+		}
+		// Validación opcional de los nuevos campos
+		if (raw.glossary && !Array.isArray(raw.glossary)) {
+			throw new Error('El campo glossary debe ser un array.');
+		}
+		if (raw.dataAnalysis && typeof raw.dataAnalysis !== 'object') {
+			throw new Error('El campo dataAnalysis debe ser un objeto.');
+		}
+		if (
+			typeof raw.politicalBiasScore !== 'number' ||
+			raw.politicalBiasScore < 0 ||
+			raw.politicalBiasScore > 1
+		) {
+			throw new Error('El campo politicalBiasScore debe ser un número entre 0 y 1.');
+		}
+		if (
+			typeof raw.factualityScore !== 'number' ||
+			raw.factualityScore < 0 ||
+			raw.factualityScore > 1
+		) {
+			throw new Error('El campo factualityScore debe ser un número entre 0 y 1.');
+		}
+		if (
+			typeof raw.sensationalismScore !== 'number' ||
+			raw.sensationalismScore < 0 ||
+			raw.sensationalismScore > 1
+		) {
+			throw new Error('El campo sensationalismScore debe ser un número entre 0 y 1.');
+		}
+
+		return raw as SingleNewsAnalysisResult;
+	} catch (e) {
+		console.error('Error al parsear JSON de la IA (single):', cleanText);
+		throw e;
+	}
 }

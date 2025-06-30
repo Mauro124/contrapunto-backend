@@ -1,4 +1,4 @@
-import { NewsAnalysisResult } from './types';
+import { SingleNewsAnalysisResult } from './types';
 export interface INewsAnalysisService {
-	analyzeNews(url: string): Promise<NewsAnalysisResult>;
+	analyzeSingleNews(url: string, html?: string): Promise<SingleNewsAnalysisResult>;
 }

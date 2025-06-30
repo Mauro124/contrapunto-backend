@@ -65,10 +65,14 @@ function saveCacheToFile(cache: Record<string, FeedCacheEntry>) {
 
 let FEED_CACHE: Record<string, FeedCacheEntry> = loadCacheFromFile();
 
-export async function getFeedWithCache(parser: any, feedUrl: string): Promise<any[]> {
+export async function getFeedWithCache(
+	parser: any,
+	feedUrl: string,
+	forceUpdate = false
+): Promise<any[]> {
 	const now = Date.now();
 	const cache = FEED_CACHE[feedUrl];
-	if (cache && now - cache.timestamp < FEED_CACHE_TTL) {
+	if (!forceUpdate && cache && now - cache.timestamp < FEED_CACHE_TTL) {
 		return cache.items;
 	}
 	const feed = await parser.parseURL(feedUrl);

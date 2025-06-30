@@ -1,35 +1,28 @@
 import { Request, Response } from 'express';
-import { NewsAnalysisResult } from '../interfaces/types';
-import { rssProviders } from '../providers/rssProviders';
-import { InMemoryNewsAnalysisRepository } from '../repositories/InMemoryNewsAnalysisRepository';
+import { SingleNewsAnalysisResult } from '../interfaces/types';
 import { GenkitAIAnalyzer } from '../services/GenkitAIAnalyzer';
 import { NewsAnalysisService } from '../services/NewsAnalysisService';
-import { RssContentExtractor } from '../services/RssContentExtractor';
-import { SimpleArticleMatcher } from '../services/SimpleArticleMatcher';
 
-const newsAnalysisService = new NewsAnalysisService(
-	new RssContentExtractor(),
-	rssProviders,
-	new SimpleArticleMatcher(0.3),
-	new GenkitAIAnalyzer(),
-	new InMemoryNewsAnalysisRepository<NewsAnalysisResult>()
-);
+const newsAnalysisService = new NewsAnalysisService(new GenkitAIAnalyzer());
 
-export const analyzeNews = async (req: Request, res: Response) => {
-	const { url } = req.body;
-	console.log(`[Controller] POST /news-analysis body:`, req.body);
-	if (!url) {
+export const analyzeSingleNews = async (req: Request, res: Response) => {
+	const { url, html } = req.body;
+	if (!url && !html) {
 		console.warn(`[Controller] Falta el parámetro url en el body.`);
 		return res.status(400).json({ error: 'Missing url' });
 	}
+
 	try {
-		const result = await newsAnalysisService.analyzeNews(url);
-		console.log(`[Controller] Análisis completado para URL: ${url}`);
+		const result: SingleNewsAnalysisResult = await newsAnalysisService.analyzeSingleNews(
+			url,
+			html
+		);
+		console.log(`[Controller] Análisis individual completado para URL: ${url}`);
 		return res.json(result);
 	} catch (err) {
-		console.error(`[Controller] Error analizando noticia:`, err);
+		console.error(`[Controller] Error en análisis individual:`, err);
 		return res.status(500).json({
-			error: 'Error analyzing news',
+			error: 'Error analyzing single news',
 			details: err instanceof Error ? err.message : err,
 		});
 	}

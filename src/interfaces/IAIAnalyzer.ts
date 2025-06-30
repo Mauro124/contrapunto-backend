@@ -1,8 +1,4 @@
-import { Article, BiasResult, ActorResult } from './types';
+import { BiasResult, ActorResult, SingleNewsAnalysisResult } from './types';
 export interface IAIAnalyzer {
-	analyze(articles: Article[]): Promise<{
-		neutralSummary: string;
-		biasAnalysis: BiasResult[];
-		actorAnalysis: ActorResult[];
-	}>;
+	analyzeSingle(html: String): Promise<SingleNewsAnalysisResult>;
 }

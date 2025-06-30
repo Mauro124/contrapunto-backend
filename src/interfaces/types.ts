@@ -42,3 +42,37 @@ export interface NewsAnalysisResult {
 	actorAnalysis: ActorResult[];
 	relatedArticlesList?: RelatedArticle[];
 }
+
+export interface GlossaryEntry {
+	term: string;
+	definition: string;
+}
+
+export type DataUnit = 'porcentaje' | 'numero' | 'moneda' | 'cantidad' | 'nivel' | 'otro';
+
+export interface DataAnalysis {
+	explanation: string;
+	values: { label: string; value: number; unit: DataUnit }[];
+	rawData?: any;
+}
+
+export interface SingleNewsAnalysisResult {
+	title: string;
+	snippet: string;
+	url: string;
+	source: string;
+	publishedAt: string;
+	neutralSummary: string;
+	biasAnalysis: BiasResult;
+	actorAnalysis: ActorResult;
+	contextInfo: string;
+	keywords?: string[];
+	entities?: string[];
+	writingStyle?: string;
+	factCheck?: string;
+	glossary?: GlossaryEntry[];
+	dataAnalysis?: DataAnalysis;
+	politicalBiasScore: number; // 0 (izquierda) a 1 (derecha)
+	factualityScore: number; // 0 a 1
+	sensationalismScore: number; // 0 a 1
+}

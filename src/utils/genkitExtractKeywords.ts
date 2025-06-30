@@ -15,7 +15,6 @@ export const extractKeywordsWithGenkit = ai.defineFlow(
 	async (text) => {
 		const prompt = `Extrae las 8 palabras clave más relevantes del siguiente texto de noticia. Devuelve SOLO un JSON válido con la clave: keywords (array de strings, sin duplicados, en minúsculas, sin signos, sin stopwords, ordenadas por relevancia descendente). Texto:\n${text}`;
 		const { text: aiText } = await ai.generate({
-			model: googleAI.model('gemini-2.5-flash'),
 			prompt,
 		});
 		const jsonStart = aiText.indexOf('{');

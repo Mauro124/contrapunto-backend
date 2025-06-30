@@ -2,16 +2,17 @@ import express from 'express';
 import cors from 'cors';
 import { applyMiddleware } from './middleware';
 import newsAnalysisRouter from './routes/newsAnalysis';
+import { providers } from './interfaces/INewsProvider';
 
 const app = express();
 app.use(
 	cors({
-		origin: 'http://localhost:3000',
+		origin: [...providers],
 		credentials: true,
 	})
 );
 
-app.use(express.json());
+app.use(express.json({ limit: '2mb' }));
 
 const PORT = process.env.PORT || 3001;
 

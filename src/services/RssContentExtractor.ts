@@ -56,7 +56,44 @@ export class RssContentExtractor implements IContentExtractor {
 			}
 		}
 		const results = await Promise.all(feedTasks);
-		const found = results.find((r) => r && r.item);
+		let found = results.find((r) => r && r.item);
+		if (!found) {
+			// Si no se encontró, forzar actualización de feeds y volver a buscar
+			console.log(
+				'[RssContentExtractor] No se encontró en caché, forzando actualización de feeds...'
+			);
+			const feedTasksNoCache: Array<Promise<{ item: any; providerSource: string } | null>> =
+				[];
+			for (const rssProvider of rssProviders) {
+				if (typeof (rssProvider as any).getFeedUrls !== 'function') continue;
+				const feedUrls = (rssProvider as any).getFeedUrls();
+				const providerSource = (rssProvider as any).source || '';
+				for (const feedUrl of feedUrls) {
+					if (!feedUrl) continue;
+					feedTasksNoCache.push(
+						(async () => {
+							try {
+								const items = await getFeedWithCache(parser, feedUrl, true); // true = forzar actualización
+								const item = items.find(
+									(i) => normalizeUrl(i.link || '') === normalizedTarget
+								);
+								if (item) {
+									return { item, providerSource };
+								}
+							} catch (e) {
+								console.error(
+									`[RssContentExtractor] Error consultando feed (sin caché) ${feedUrl}:`,
+									e
+								);
+							}
+							return null;
+						})()
+					);
+				}
+			}
+			const resultsNoCache = await Promise.all(feedTasksNoCache);
+			found = resultsNoCache.find((r) => r && r.item);
+		}
 		if (found) {
 			const { item, providerSource } = found;
 			const title = item.title || '';
