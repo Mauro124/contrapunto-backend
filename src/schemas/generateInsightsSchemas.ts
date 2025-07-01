@@ -33,6 +33,14 @@ export const GenerateNewsInsightsSchema = z.object({
 	extraInfo: z.string().optional(),
 	keywords: z.array(z.string()).optional(),
 	entities: z.array(z.string()).optional(),
+	personEntities: z
+		.array(
+			z.object({
+				nombre: z.string(),
+				descripcion: z.string(),
+			})
+		)
+		.optional(),
 	writingStyle: z.string().optional(),
 	factCheck: z.string().optional(),
 	contextInfo: z.string().optional(),
@@ -51,7 +59,7 @@ export const GenerateNewsInsightsSchema = z.object({
 				z.object({
 					label: z.string(),
 					value: z.number(),
-					unit: z.enum(['porcentaje', 'numero']),
+					unit: z.enum(['porcentaje', 'numero', 'moneda', 'cantidad', 'nivel', 'otro']),
 				})
 			),
 			rawData: z.any().optional(),

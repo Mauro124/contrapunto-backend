@@ -5,8 +5,8 @@ import { SingleNewsAnalysisResult } from '../interfaces/types';
 export class NewsAnalysisService implements INewsAnalysisService {
 	constructor(private aiAnalyzer: IAIAnalyzer) {}
 
-	async analyzeSingleNews(url: string, html: string): Promise<SingleNewsAnalysisResult> {
-		const aiResult = await this.aiAnalyzer.analyzeSingle(html!);
+	async analyzeSingleNews(url: string): Promise<SingleNewsAnalysisResult> {
+		const aiResult = await this.aiAnalyzer.analyzeSingle(url!);
 		return aiResult as SingleNewsAnalysisResult;
 	}
 }

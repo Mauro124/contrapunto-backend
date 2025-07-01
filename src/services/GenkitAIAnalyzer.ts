@@ -3,8 +3,7 @@ import { SingleNewsAnalysisResult } from '../interfaces/types';
 import { generateNewsInsights } from '../utils/genkitInsights';
 
 export class GenkitAIAnalyzer implements IAIAnalyzer {
-	async analyzeSingle(html: String): Promise<SingleNewsAnalysisResult> {
-		const insights = await generateNewsInsights(html);
-		return insights as any;
+	async analyzeSingle(url: string): Promise<SingleNewsAnalysisResult> {
+		return await generateNewsInsights(url);
 	}
 }

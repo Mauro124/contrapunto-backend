@@ -1,4 +1,4 @@
-import { BiasResult, ActorResult, SingleNewsAnalysisResult } from './types';
+import { SingleNewsAnalysisResult } from './types';
 export interface IAIAnalyzer {
-	analyzeSingle(html: String): Promise<SingleNewsAnalysisResult>;
+	analyzeSingle(url: string): Promise<SingleNewsAnalysisResult>;
 }
