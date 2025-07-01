@@ -1,3 +1,4 @@
+import * as functions from 'firebase-functions';
 import googleAI, {
 	gemini15Flash,
 	gemini15Flash8b,
@@ -6,6 +7,20 @@ import googleAI, {
 } from '@genkit-ai/googleai';
 import { genkit } from 'genkit';
 import { SingleNewsAnalysisResult } from '../interfaces/types';
+
+// Antes de usar googleAI, setea la API key desde las variables de entorno de Firebase si está disponible
+defineGeminiApiKeyFromFirebaseConfig();
+
+function defineGeminiApiKeyFromFirebaseConfig() {
+	try {
+		const apiKey = functions.config().gemini?.api_key;
+		if (apiKey && !process.env.GEMINI_API_KEY) {
+			process.env.GEMINI_API_KEY = apiKey;
+		}
+	} catch (e) {
+		// No está en entorno Firebase Functions, ignora
+	}
+}
 
 // Array de modelos Gemini disponibles
 const GEMINI_MODELS = [gemini15Flash, gemini15Flash8b, gemini20Flash, gemini20FlashLite];
