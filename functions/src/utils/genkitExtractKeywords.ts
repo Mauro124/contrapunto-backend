@@ -1,9 +1,9 @@
-import googleAI, { gemini20Flash } from '@genkit-ai/googleai';
+import { googleAI } from '@genkit-ai/google-genai';
 import { genkit, z } from 'genkit';
 
 const ai = genkit({
-	plugins: [googleAI()],
-	model: gemini20Flash,
+	plugins: [googleAI({ apiKey: process.env.GEMINI_API_KEY })],
+	model: 'googleai/gemini-3.6-flash',
 });
 
 export const extractKeywordsWithGenkit = ai.defineFlow(

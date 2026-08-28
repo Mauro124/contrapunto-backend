@@ -5,11 +5,12 @@
 	"scripts": {
 		"dev": "ts-node-dev src/index.ts",
 		"build": "tsc",
-		"start": "node dist/index.js"
+		"start": "node dist/index.js",
+		"deploy": "firebase deploy --only functions"
 	},
 	"dependencies": {
-		"@genkit-ai/ai": "^1.13.0",
-		"@genkit-ai/googleai": "^1.13.0",
+		"@genkit-ai/ai": "^1.40.1",
+		"@genkit-ai/google-genai": "^1.40.1",
 		"@mozilla/readability": "^0.6.0",
 		"axios": "^1.10.0",
 		"cheerio": "^1.1.0",
@@ -17,7 +18,7 @@
 		"express": "^4.18.2",
 		"firebase-admin": "^13.4.0",
 		"firebase-functions": "^6.3.2",
-		"genkit": "^1.13.0",
+		"genkit": "^1.41.0",
 		"jsdom": "^26.1.0",
 		"natural": "^8.1.0",
 		"puppeteer": "^24.10.2",

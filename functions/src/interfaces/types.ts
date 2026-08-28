@@ -96,6 +96,13 @@ export interface SingleNewsAnalysisResult {
 	factualityScore?: number; // 0 a 1
 	sensationalismScore?: number; // 0 a 1
 	personEntities?: PersonEntity[]; // Personas mencionadas con descripción contextual
+	similarNewsCoverage?: {
+		title: string;
+		url: string;
+		source: string;
+		bias: string;
+		difference: string;
+	}[];
 }
 
 /**

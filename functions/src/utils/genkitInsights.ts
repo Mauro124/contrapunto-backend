@@ -1,10 +1,5 @@
 import * as functions from 'firebase-functions';
-import googleAI, {
-	gemini15Flash,
-	gemini15Flash8b,
-	gemini20Flash,
-	gemini20FlashLite,
-} from '@genkit-ai/googleai';
+import { googleAI } from '@genkit-ai/google-genai';
 import { genkit } from 'genkit';
 import { SingleNewsAnalysisResult } from '../interfaces/types';
 
@@ -23,7 +18,10 @@ function defineGeminiApiKeyFromFirebaseConfig() {
 }
 
 // Array de modelos Gemini disponibles
-const GEMINI_MODELS = [gemini15Flash, gemini15Flash8b, gemini20Flash, gemini20FlashLite];
+const GEMINI_MODELS = [
+	'googleai/gemini-3.6-flash',
+	'googleai/gemini-3.5-flash',
+];
 
 // Devuelve también una lista de noticias relacionadas (relatedNewsSuggestions) aparte
 export async function generateNewsInsights(url: string) {
@@ -31,7 +29,7 @@ export async function generateNewsInsights(url: string) {
 		throw new Error('Debe proporcionar al menos un texto de noticia para generar insights.');
 	}
 
-	const prompt = `Eres un analista experto en medios. Analiza en profundidad la noticia ubicada en la siguiente URL (el modelo tiene acceso al contenido completo). Responde SOLO con un JSON válido con los siguientes campos (usa los nombres exactos):
+	const prompt = `Eres un analista experto en medios. Analiza en profundidad la noticia ubicada en la siguiente URL (el modelo tiene acceso al contenido completo). Usa Google Search para buscar otras fuentes de información o medios que cubran la misma noticia y poder contrastarla. Responde SOLO con un JSON válido con los siguientes campos (usa los nombres exactos):
 {
   "title": string, // Título de la noticia
   "snippet": string, // Fragmento o resumen breve
@@ -50,7 +48,8 @@ export async function generateNewsInsights(url: string) {
   "dataAnalysis": { "explanation": string, "values": [{ "label": string, "value": number, "unit": string }], "rawData": any } | null, // Extrae y agrupa TODO dato numérico, porcentaje, estadística, tendencia, comparación, cifra, tabla o gráfico mencionado. Si hay pocos datos, agrúpalos igual. Si hay tablas, listas o gráficos, conviértelos a objetos en values. Si hay datos en imágenes o gráficos, intenta inferirlos del texto. Si no hay datos, explica por qué en explanation y deja values como array vacío. IMPORTANTE: La unidad (unit) debe ser SOLO una de: 'porcentaje', 'numero', 'moneda', 'cantidad', 'nivel', 'otro'. Si la unidad no encaja, usa 'otro' y acláralo en el label.
   "politicalBiasScore": number, // 0 (izquierda) a 1 (derecha)
   "factualityScore": number, // 0 a 1
-  "sensationalismScore": number // 0 a 1
+  "sensationalismScore": number, // 0 a 1
+  "similarNewsCoverage": [{ "title": string, "url": string, "source": string, "bias": string, "difference": string }] // Usa Google Search para buscar esta misma noticia en otros medios. Si encuentras coberturas alternativas, añade al menos 2 o 3 fuentes con su título, URL, medio, sesgo estimado y cómo difiere su enfoque con respecto al artículo analizado. Si no hay coberturas alternativas, deja el array vacío.
 }
 
 - Si algún campo no aplica, déjalo vacío, null o como array vacío.
@@ -82,7 +81,16 @@ Ejemplo de salida:
   "dataAnalysis": null,
   "politicalBiasScore": 0.2,
   "factualityScore": 0.9,
-  "sensationalismScore": 0.1
+  "sensationalismScore": 0.1,
+  "similarNewsCoverage": [
+    {
+      "title": "Otra perspectiva sobre el anuncio económico",
+      "url": "https://otromedio.com/noticia-alternativa",
+      "source": "Mundo Diario",
+      "bias": "Derecha",
+      "difference": "Enfoca el impacto fiscal negativo mientras que el medio principal resalta el beneficio social."
+    }
+  ]
 }`;
 
 	// Ejemplo cuando no hay personas:
@@ -92,20 +100,24 @@ Ejemplo de salida:
 	const modelosDisponibles = [...GEMINI_MODELS];
 	let ultimoError: any = null;
 	while (modelosDisponibles.length > 0) {
-		const idx = Math.floor(Math.random() * modelosDisponibles.length);
-		const model = modelosDisponibles.splice(idx, 1)[0];
+		const model = modelosDisponibles.shift()!;
 		const ai = genkit({
-			plugins: [googleAI()],
+			plugins: [googleAI({ apiKey: process.env.GEMINI_API_KEY })],
 			model,
 		});
 		try {
-			console.log('Intentando con modelo Gemini:', model.name);
-			const response = await ai.generate([{ media: { url } }, { text: prompt }]);
+			console.log('Intentando con modelo Gemini:', model);
+			const response = await ai.generate({
+				prompt: `Noticia a analizar (URL): ${url}\n\nInstrucciones:\n${prompt}`,
+				config: {
+					tools: [{ googleSearch: {} }],
+				},
+			});
 			const aiText = response.text;
-			console.log('Modelo Gemini usado:', model.name);
+			console.log('Modelo Gemini usado:', model);
 			console.log('Respuesta cruda de Gemini (single):', aiText);
 			if (!aiText || aiText.trim().length === 0) {
-				throw new Error('La IA devolvió una respuesta vacía. Modelo: ' + model.name);
+				throw new Error('La IA devolvió una respuesta vacía. Modelo: ' + model);
 			}
 			const jsonStart = aiText.indexOf('{');
 			const jsonEnd = aiText.lastIndexOf('}');
@@ -115,13 +127,13 @@ Ejemplo de salida:
 			} else {
 				console.error(
 					'La IA no devolvió un JSON válido. Modelo:',
-					model.name,
+					model,
 					'Respuesta:',
 					aiText
 				);
 				throw new Error(
 					'La IA no devolvió un JSON válido. Modelo: ' +
-						model.name +
+						model +
 						'. Respuesta: ' +
 						aiText
 				);
@@ -132,7 +144,7 @@ Ejemplo de salida:
 			} catch (e) {
 				console.error(
 					'Error al parsear o validar la respuesta de la IA. Modelo:',
-					model.name,
+					model,
 					'Respuesta:',
 					cleanText,
 					'Error:',
@@ -140,7 +152,7 @@ Ejemplo de salida:
 				);
 				throw new Error(
 					'Error al parsear o validar la respuesta de la IA. Modelo: ' +
-						model.name +
+						model +
 						'. Respuesta: ' +
 						cleanText
 				);
@@ -154,7 +166,7 @@ Ejemplo de salida:
 				msg.includes('Service Unavailable') ||
 				msg.includes('model is overloaded')
 			) {
-				console.warn('Modelo', model.name, 'sobrecargado. Probando con otro modelo...');
+				console.warn('Modelo', model, 'sobrecargado. Probando con otro modelo...');
 				continue;
 			}
 			// Si es otro error, no reintentar

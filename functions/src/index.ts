@@ -19,3 +19,5 @@ export const generateNewsInsightsFunction = functions.https.onRequest(async (req
 		res.status(500).json({ error: error.message || 'Error interno.' });
 	}
 });
+
+// Forzar actualización de despliegue v3.0
