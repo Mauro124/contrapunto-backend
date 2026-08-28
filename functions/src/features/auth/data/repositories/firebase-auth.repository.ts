@@ -26,7 +26,10 @@ export class FirebaseAuthRepository implements AuthRepository {
 	private readonly apiKey: string;
 
 	constructor(apiKey?: string) {
-		this.apiKey = apiKey || process.env.GEMINI_API_KEY || process.env.FIREBASE_API_KEY || '';
+		this.apiKey =
+			apiKey ||
+			process.env.APP_WEB_API_KEY ||
+			'AIzaSyBtAuTlTGKIub54eXLmuXzxma8tIgeEBSg';
 	}
 
 	async register(email: string, password: string): Promise<AuthTokens> {
