@@ -1,10 +1,8 @@
+import express, { Express } from 'express';
 import cors from 'cors';
-import express from 'express';
-import { errorHandler } from './errorHandler';
 
-export const applyMiddleware = (app: express.Application) => {
-	app.use(cors());
+export const setMiddlewares = (app: Express): void => {
+	app.use(cors({ origin: true }));
 	app.use(express.json());
-	// Otros middlewares aquí si es necesario
-	app.use(errorHandler);
+	app.use(express.urlencoded({ extended: true }));
 };

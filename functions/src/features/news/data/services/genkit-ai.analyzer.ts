@@ -1,35 +1,20 @@
-import * as functions from 'firebase-functions';
 import { googleAI } from '@genkit-ai/google-genai';
 import { genkit } from 'genkit';
-import { SingleNewsAnalysisResult } from '../interfaces/types';
+import { SingleNewsAnalysisResult } from '../../../../interfaces/types';
+import { IAIAnalyzerService } from '../../domain/services/ai-analyzer.service';
 
-// Antes de usar googleAI, setea la API key desde las variables de entorno de Firebase si está disponible
-defineGeminiApiKeyFromFirebaseConfig();
-
-function defineGeminiApiKeyFromFirebaseConfig() {
-	try {
-		const apiKey = functions.config().gemini?.api_key;
-		if (apiKey && !process.env.GEMINI_API_KEY) {
-			process.env.GEMINI_API_KEY = apiKey;
-		}
-	} catch (e) {
-		// No está en entorno Firebase Functions, ignora
-	}
-}
-
-// Array de modelos Gemini disponibles
 const GEMINI_MODELS = [
 	'googleai/gemini-3.6-flash',
 	'googleai/gemini-3.5-flash',
 ];
 
-// Devuelve también una lista de noticias relacionadas (relatedNewsSuggestions) aparte
-export async function generateNewsInsights(url: string) {
-	if (!url || url.length === 0) {
-		throw new Error('Debe proporcionar al menos un texto de noticia para generar insights.');
-	}
+export class GenkitAIAnalyzer implements IAIAnalyzerService {
+	async analyze(url: string): Promise<SingleNewsAnalysisResult> {
+		if (!url || url.length === 0) {
+			throw new Error('Debe proporcionar al menos una URL de noticia para analizar.');
+		}
 
-	const prompt = `Eres un analista experto en medios. Analiza en profundidad la noticia ubicada en la siguiente URL (el modelo tiene acceso al contenido completo). Usa Google Search para buscar otras fuentes de información o medios que cubran la misma noticia y poder contrastarla. Responde SOLO con un JSON válido con los siguientes campos (usa los nombres exactos):
+		const prompt = `Eres un analista experto en medios. Analiza en profundidad la noticia ubicada en la siguiente URL (el modelo tiene acceso al contenido completo). Usa Google Search para buscar otras fuentes de información o medios que cubran la misma noticia y poder contrastarla. Responde SOLO con un JSON válido con los siguientes campos (usa los nombres exactos):
 {
   "title": string, // Título de la noticia
   "snippet": string, // Fragmento o resumen breve
@@ -64,7 +49,7 @@ Ejemplo de salida:
   "snippet": "Resumen breve...",
   "url": "https://ejemplo.com/noticia",
   "source": "Ejemplo News",
-  "publishedAt": "2025-07-01",
+  "publishedAt": "2026-08-28",
   "neutralSummary": "Esta noticia trata sobre...",
   "biasAnalysis": { "source": "Ejemplo News", "url": "https://ejemplo.com/noticia", "bias": "Centro", "biasScore": 0, "confidence": 0.8, "explanation": "El lenguaje es neutral..." },
   "actorAnalysis": { "source": "Ejemplo News", "url": "https://ejemplo.com/noticia", "favoredActor": "Gobierno", "confidence": 0.7, "explanation": "Se favorece al gobierno por..." },
@@ -72,8 +57,7 @@ Ejemplo de salida:
   "keywords": ["política", "economía"],
   "entities": ["Juan Pérez", "Argentina"],
   "personEntities": [
-    { "nombre": "Juan Pérez", "descripcion": "Presidente de Argentina" },
-    { "nombre": "María Gómez", "descripcion": "Economista y analista política" }
+    { "nombre": "Juan Pérez", "descripcion": "Presidente de Argentina" }
   ],
   "writingStyle": "informativo",
   "factCheck": "No se detectaron errores fácticos.",
@@ -93,86 +77,61 @@ Ejemplo de salida:
   ]
 }`;
 
-	// Ejemplo cuando no hay personas:
-	// "personEntities": []
+		const modelosDisponibles = [...GEMINI_MODELS];
+		let ultimoError: any = null;
 
-	// --- Retry automático con modelos Gemini ---
-	const modelosDisponibles = [...GEMINI_MODELS];
-	let ultimoError: any = null;
-	while (modelosDisponibles.length > 0) {
-		const model = modelosDisponibles.shift()!;
-		const ai = genkit({
-			plugins: [googleAI({ apiKey: process.env.GEMINI_API_KEY })],
-			model,
-		});
-		try {
-			console.log('Intentando con modelo Gemini:', model);
-			const response = await ai.generate({
-				prompt: `Noticia a analizar (URL): ${url}\n\nInstrucciones:\n${prompt}`,
-				config: {
-					tools: [{ googleSearch: {} }],
-				},
+		while (modelosDisponibles.length > 0) {
+			const model = modelosDisponibles.shift()!;
+			const ai = genkit({
+				plugins: [googleAI({ apiKey: process.env.GEMINI_API_KEY })],
+				model,
 			});
-			const aiText = response.text;
-			console.log('Modelo Gemini usado:', model);
-			console.log('Respuesta cruda de Gemini (single):', aiText);
-			if (!aiText || aiText.trim().length === 0) {
-				throw new Error('La IA devolvió una respuesta vacía. Modelo: ' + model);
-			}
-			const jsonStart = aiText.indexOf('{');
-			const jsonEnd = aiText.lastIndexOf('}');
-			let cleanText = aiText;
-			if (jsonStart !== -1 && jsonEnd !== -1) {
-				cleanText = aiText.substring(jsonStart, jsonEnd + 1);
-			} else {
-				console.error(
-					'La IA no devolvió un JSON válido. Modelo:',
-					model,
-					'Respuesta:',
-					aiText
-				);
-				throw new Error(
-					'La IA no devolvió un JSON válido. Modelo: ' +
-						model +
-						'. Respuesta: ' +
-						aiText
-				);
-			}
+
 			try {
-				const raw = JSON.parse(cleanText);
-				return raw as SingleNewsAnalysisResult;
-			} catch (e) {
-				console.error(
-					'Error al parsear o validar la respuesta de la IA. Modelo:',
-					model,
-					'Respuesta:',
-					cleanText,
-					'Error:',
-					e
-				);
-				throw new Error(
-					'Error al parsear o validar la respuesta de la IA. Modelo: ' +
-						model +
-						'. Respuesta: ' +
-						cleanText
-				);
+				console.log('[GenkitAIAnalyzer] Intentando con modelo Gemini:', model);
+				const response = await ai.generate({
+					prompt: `Noticia a analizar (URL): ${url}\n\nInstrucciones:\n${prompt}`,
+					config: {
+						tools: [{ googleSearch: {} }],
+					},
+				});
+
+				const aiText = response.text;
+				if (!aiText || aiText.trim().length === 0) {
+					throw new Error('La IA devolvió una respuesta vacía. Modelo: ' + model);
+				}
+
+				const jsonStart = aiText.indexOf('{');
+				const jsonEnd = aiText.lastIndexOf('}');
+				let cleanText = aiText;
+
+				if (jsonStart !== -1 && jsonEnd !== -1) {
+					cleanText = aiText.substring(jsonStart, jsonEnd + 1);
+				} else {
+					throw new Error(
+						'La IA no devolvió un JSON válido. Modelo: ' +
+							model +
+							'. Respuesta: ' +
+							aiText
+					);
+				}
+
+				return JSON.parse(cleanText) as SingleNewsAnalysisResult;
+			} catch (err: any) {
+				ultimoError = err;
+				const msg = err && err.message ? err.message : String(err);
+				if (
+					msg.includes('503') ||
+					msg.includes('Service Unavailable') ||
+					msg.includes('model is overloaded')
+				) {
+					console.warn('Modelo', model, 'sobrecargado. Probando siguiente modelo...');
+					continue;
+				}
+				throw err;
 			}
-		} catch (err: any) {
-			ultimoError = err;
-			// Si es error 503 de modelo sobrecargado, probar con otro modelo
-			const msg = err && err.message ? err.message : String(err);
-			if (
-				msg.includes('503') ||
-				msg.includes('Service Unavailable') ||
-				msg.includes('model is overloaded')
-			) {
-				console.warn('Modelo', model, 'sobrecargado. Probando con otro modelo...');
-				continue;
-			}
-			// Si es otro error, no reintentar
-			throw err;
 		}
+
+		throw ultimoError || new Error('Todos los modelos Gemini fallaron.');
 	}
-	// Si todos los modelos fallaron
-	throw ultimoError || new Error('Todos los modelos Gemini fallaron.');
 }
