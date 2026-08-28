@@ -1,4 +1,5 @@
 import { Express, Request, Response, NextFunction } from 'express';
+import { initAuthRoutes } from './auth.routes';
 import { initNewsRoutes } from './news.routes';
 import { initUsersRoutes } from './users.routes';
 import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.middleware';
@@ -13,6 +14,7 @@ import { NewsController } from '../features/news/controllers/news.controller';
 
 export const initRoutes = (app: Express): void => {
 	// Rutas modulares REST
+	app.use('/api/auth', initAuthRoutes());
 	app.use('/api/users', initUsersRoutes());
 	app.use('/api/news', initNewsRoutes());
 

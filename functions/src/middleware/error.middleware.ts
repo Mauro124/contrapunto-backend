@@ -24,6 +24,30 @@ export const errorMiddleware = (
 		return;
 	}
 
+	if (err.name === 'InvalidCredentialsError') {
+		res.status(401).json({
+			error: 'invalid_credentials',
+			message: err.message,
+		});
+		return;
+	}
+
+	if (err.name === 'EmailAlreadyInUseError') {
+		res.status(409).json({
+			error: 'email_already_in_use',
+			message: err.message,
+		});
+		return;
+	}
+
+	if (err.name === 'InvalidTokenError') {
+		res.status(401).json({
+			error: 'invalid_token',
+			message: err.message,
+		});
+		return;
+	}
+
 	res.status(err.status || 500).json({
 		error: err.code || 'internal_server_error',
 		message: err.message || 'Error interno del servidor.',
